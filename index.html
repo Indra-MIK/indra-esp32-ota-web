@@ -4,85 +4,351 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Indra ESP32 OTA</title>
+  <meta name="theme-color" content="#0b1220">
+  <title>Indra ESP32 OTA | Control Center</title>
+
   <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1220;
+      --surface: #111c2f;
+      --surface2: #16243a;
+      --border: #26364d;
+      --text: #edf4ff;
+      --muted: #93a4bd;
+      --green: #36d399;
+      --blue: #60a5fa;
+      --amber: #fbbf24;
+      --red: #fb7185;
+    }
+
     * { box-sizing: border-box; }
+
     body {
-      margin: 0; padding: 24px 14px; min-height: 100vh;
-      font-family: Arial, sans-serif; background: #f1f5f9; color: #172033;
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(ellipse at 10% 0%, #15345a 0, transparent 42%),
+        radial-gradient(ellipse at 100% 15%, #12352e 0, transparent 32%),
+        var(--bg);
+      color: var(--text);
     }
-    main {
-      max-width: 560px; margin: 24px auto; padding: 24px;
-      background: white; border-radius: 18px;
-      box-shadow: 0 8px 28px #0f172a12;
-    }
-    h1 { margin-top: 0; font-size: 26px; }
-    p { line-height: 1.5; }
-    label { display: block; margin: 14px 0 6px; font-weight: bold; }
-    input {
-      width: 100%; padding: 12px; border: 1px solid #cbd5e1;
-      border-radius: 8px; font-size: 16px;
-    }
+
+    button, input { font: inherit; }
+
     button {
-      width: 100%; padding: 12px; margin-top: 12px;
-      border: 0; border-radius: 8px; cursor: pointer;
-      background: #166534; color: white; font-size: 16px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      padding: 12px 16px;
+      min-height: 46px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: transform .15s, opacity .15s, border-color .15s;
     }
-    button.secondary { background: #334155; }
-    button.danger { background: #b91c1c; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .panel {
-      margin-top: 18px; padding: 14px; border-radius: 10px;
-      background: #f8fafc; border: 1px solid #e2e8f0;
+
+    button:hover:not(:disabled) { transform: translateY(-1px); }
+    button:disabled { opacity: .42; cursor: not-allowed; }
+
+    .primary {
+      color: #062419;
+      background: linear-gradient(135deg, #5ee7b0, #34d399);
+    }
+
+    .secondary {
+      background: #20334d;
+      color: var(--text);
+      border-color: #314763;
+    }
+
+    .danger {
+      background: #351c2a;
+      color: #fecdd3;
+      border-color: #633044;
+    }
+
+    .wrap { width: min(1050px, 100%); margin: auto; padding: 26px 18px 42px; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 13px; }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 48px;
+      height: 48px;
+      border-radius: 15px;
+      background: linear-gradient(145deg, #34d399, #60a5fa);
+      color: #071523;
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 4px; font-size: clamp(21px, 4vw, 29px); }
+    h2 { font-size: 19px; margin-bottom: 8px; }
+    .subtitle, .muted { color: var(--muted); }
+    .subtitle { font-size: 13px; margin: 0; }
+
+    .eyebrow {
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1.7px;
+      text-transform: uppercase;
+      margin-bottom: 7px;
+    }
+
+    .panel, .stat {
+      background: linear-gradient(145deg, #142137, #101a2b);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 14px 40px #00000014;
+    }
+
+    .panel { padding: 23px; margin-bottom: 18px; }
+    .hero { padding: 28px; }
+    .hero p { color: var(--muted); line-height: 1.65; margin-bottom: 0; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .stat { padding: 18px; min-width: 0; }
+    .stat-label { color: var(--muted); font-size: 13px; margin-bottom: 12px; }
+    .stat-value {
+      font-size: clamp(17px, 3vw, 22px);
+      font-weight: 800;
       overflow-wrap: anywhere;
     }
-    .muted { color: #64748b; font-size: 14px; }
-    #message { white-space: pre-wrap; }
-    .hidden { display: none; }
+
+    .dot {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #64748b;
+      margin-right: 8px;
+      vertical-align: 1px;
+    }
+
+    .dot.green { background: var(--green); box-shadow: 0 0 12px #36d39960; }
+    .dot.blue { background: var(--blue); }
+    .dot.amber { background: var(--amber); }
+    .dot.red { background: var(--red); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      background: #25334a;
+      color: #cbd5e1;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .pill.green { background: #10372f; color: #86efc2; }
+    .pill.blue { background: #172f50; color: #93c5fd; }
+    .pill.amber { background: #3d3016; color: #fde68a; }
+    .pill.red { background: #411e2a; color: #fda4af; }
+
+    .section-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+    .actions button { width: 100%; }
+
+    .field { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 7px; font-size: 13px; font-weight: 700; color: #d6e2f3; }
+
+    input {
+      width: 100%;
+      min-height: 47px;
+      padding: 12px 14px;
+      border: 1px solid #334760;
+      border-radius: 10px;
+      background: #0b1525;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus { border-color: var(--green); box-shadow: 0 0 0 3px #36d39920; }
+
+    .hidden { display: none !important; }
+    .message {
+      padding: 15px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #0c1728;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.6;
+      font-size: 14px;
+    }
+
+    .message.success { border-color: #1f604c; }
+    .message.error { border-color: #713044; }
+    .message.info { border-color: #2d4c71; }
+
+    .details {
+      display: grid;
+      grid-template-columns: 140px minmax(0, 1fr);
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid #26364d;
+      font-size: 14px;
+    }
+
+    .details:last-child { border-bottom: 0; }
+    .details span:first-child { color: var(--muted); }
+    .details span:last-child { overflow-wrap: anywhere; }
+
+    .footnote { text-align: center; color: var(--muted); font-size: 12px; line-height: 1.7; margin-top: 24px; }
+
+    @media (max-width: 680px) {
+      .wrap { padding: 18px 12px 30px; }
+      header { align-items: flex-start; }
+      .grid { grid-template-columns: 1fr; }
+      .hero, .panel { padding: 19px; }
+      .actions { grid-template-columns: 1fr; }
+      .details { grid-template-columns: 110px minmax(0, 1fr); }
+    }
   </style>
 </head>
-<body>
-<main>
-  <h1>ESP32 OTA Control</h1>
-  <p class="muted">Remote firmware management · Indra</p>
 
-  <section id="loginPanel">
-    <h2>Login Admin</h2>
-    <label for="email">Email Firebase</label>
-    <input id="email" type="email" autocomplete="username"
-           placeholder="Email admin" required>
-    <label for="password">Password Firebase</label>
-    <input id="password" type="password"
-           autocomplete="current-password" placeholder="Password" required>
-    <button id="loginBtn">Login</button>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">⚡</div>
+      <div>
+        <h1>ESP32 OTA Control</h1>
+        <p class="subtitle">INDRA · REMOTE FIRMWARE MANAGEMENT</p>
+      </div>
+    </div>
+    <span id="authBadge" class="pill">Belum login</span>
+  </header>
+
+  <section id="loginPanel" class="panel">
+    <div class="eyebrow">Secure access</div>
+    <h2>Login Administrator</h2>
+    <p class="muted">Masuk menggunakan akun admin Firebase yang diizinkan.</p>
+
+    <form id="loginForm">
+      <div class="field">
+        <label for="email">Email Firebase</label>
+        <input id="email" type="email" autocomplete="username"
+               placeholder="Email administrator" required>
+      </div>
+      <div class="field">
+        <label for="password">Password Firebase</label>
+        <input id="password" type="password" autocomplete="current-password"
+               placeholder="Password" required>
+      </div>
+      <button id="loginBtn" class="primary" type="submit" style="width:100%">
+        Login ke Dashboard
+      </button>
+    </form>
   </section>
 
   <section id="dashboard" class="hidden">
-    <div class="panel">
-      <strong>Akun:</strong>
-      <div id="userEmail">-</div>
-      <strong>Firmware GitHub:</strong>
-      <div id="version">Belum diperiksa</div>
-      <strong>Status ESP32:</strong>
-      <div id="status">Memuat...</div>
-      <strong>Perintah OTA:</strong>
-      <div id="command">Memuat...</div>
+    <div class="panel hero">
+      <div class="eyebrow">Device management</div>
+      <div class="section-head">
+        <div>
+          <h2>Dashboard perangkat</h2>
+          <p class="muted" style="margin-bottom:0">Pantau laporan ESP32 dan kelola firmware dari GitHub Releases.</p>
+        </div>
+        <span id="deviceBadge" class="pill">Menunggu laporan</span>
+      </div>
+      <div class="details">
+        <span>Administrator</span><span id="userEmail">-</span>
+      </div>
+      <div class="details">
+        <span>Versi perangkat</span><span id="deviceVersion">Belum diketahui</span>
+      </div>
+      <div class="details">
+        <span>Status perangkat</span><span id="statusText">Menunggu laporan ESP32...</span>
+      </div>
+      <div class="details">
+        <span>Pesan perangkat</span><span id="deviceMessage">Belum ada laporan.</span>
+      </div>
     </div>
 
-    <button id="checkBtn" class="secondary">Cek Firmware Terbaru</button>
-    <button id="updateBtn" disabled>Update Firmware</button>
-    <button id="logoutBtn" class="danger">Logout</button>
+    <div class="grid">
+      <div class="stat">
+        <div class="stat-label">STATUS ESP32</div>
+        <div id="stateCard" class="stat-value">Menunggu</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">FIRMWARE TERPASANG</div>
+        <div id="installedCard" class="stat-value">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">GITHUB RELEASE</div>
+        <div id="releaseCard" class="stat-value">Belum diperiksa</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="eyebrow">Firmware deployment</div>
+      <h2>Kelola firmware</h2>
+      <p class="muted">Periksa release terbaru sebelum mengirim perintah pembaruan.</p>
+      <div class="actions">
+        <button id="checkBtn" class="secondary" type="button">↻ Cek Firmware Terbaru</button>
+        <button id="updateBtn" class="primary" type="button" disabled>↑ Update Firmware</button>
+      </div>
+      <div style="height:16px"></div>
+      <div class="details">
+        <span>Perintah Firebase</span><span id="commandText">Memuat...</span>
+      </div>
+      <div class="details">
+        <span>Release target</span><span id="targetText">Belum dipilih</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Activity monitor</div>
+          <h2>Informasi proses</h2>
+        </div>
+        <span id="messageBadge" class="pill blue">Informasi</span>
+      </div>
+      <div id="message" class="message info" role="status" aria-live="polite">
+        Dashboard siap.
+      </div>
+    </div>
+
+    <button id="logoutBtn" class="danger" type="button" style="width:100%">
+      Logout Administrator
+    </button>
   </section>
 
-  <div class="panel">
-    <strong>Pesan:</strong>
-    <p id="message">Silakan login untuk memulai.</p>
-  </div>
-  <p class="muted">
-    Jangan memutus daya ESP32 selama proses pembaruan.
-    Update hanya akan berjalan jika firmware ESP32 mendukungnya.
+  <p class="footnote">
+    Indra ESP32 OTA Control Center<br>
+    Pastikan daya ESP32 stabil. Jangan memutus daya selama proses OTA.
+    Status di dashboard mengikuti laporan terakhir yang diterima dari perangkat.
   </p>
-</main>
+</div>
 
 <script type="module">
   import { initializeApp } from
@@ -91,7 +357,7 @@
     getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
   } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
   import {
-    getDatabase, ref, get, set, onValue
+    getDatabase, ref, set, onValue
   } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 
   const firebaseConfig = {
@@ -111,97 +377,215 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getDatabase(app);
-
   const $ = id => document.getElementById(id);
+
   let latestRelease = null;
+  let currentCommand = "unknown";
+  let currentStatus = null;
   let stopStatusListener = null;
   let stopCommandListener = null;
   let busy = false;
 
-  function message(text) {
+  const statusLabels = {
+    ready: "Siap",
+    checking: "Memeriksa firmware",
+    no_update: "Tidak perlu update",
+    updating: "Memperbarui firmware",
+    downloading: "Mengunduh firmware",
+    success: "Update berhasil",
+    updated: "Update berhasil",
+    error: "Terjadi kesalahan",
+    failed: "Update gagal",
+    idle: "Siaga"
+  };
+
+  function setMessage(text, type = "info") {
     $("message").textContent = text;
+    $("message").className = "message " + type;
+    $("messageBadge").className = "pill " +
+      (type === "success" ? "green" : type === "error" ? "red" : "blue");
+    $("messageBadge").textContent =
+      type === "success" ? "Berhasil" :
+      type === "error" ? "Perlu diperiksa" : "Informasi";
   }
 
-  function setBusy(value) {
-    busy = value;
-    $("checkBtn").disabled = value;
-    $("updateBtn").disabled = value || !latestRelease;
+  function stateColor(state) {
+    if (["ready", "success", "updated", "no_update", "idle"].includes(state))
+      return "green";
+    if (["checking", "updating", "downloading"].includes(state))
+      return "amber";
+    if (["error", "failed"].includes(state))
+      return "red";
+    return "";
   }
 
-  $("loginBtn").addEventListener("click", async () => {
-    const email = $("email").value.trim();
-    const password = $("password").value;
-    if (!email || !password) {
-      message("Masukkan email dan password.");
+  function updateButtons() {
+    $("checkBtn").disabled = busy;
+    $("updateBtn").disabled =
+      busy || !latestRelease || currentCommand === "update";
+  }
+
+  function renderStatus(raw) {
+    currentStatus = raw && typeof raw === "object" ? raw : null;
+
+    if (!currentStatus) {
+      $("deviceBadge").className = "pill";
+      $("deviceBadge").textContent = "Belum ada laporan";
+      $("stateCard").textContent = "Menunggu";
+      $("statusText").textContent = "Menunggu laporan ESP32...";
+      $("deviceMessage").textContent = "Belum ada laporan dari perangkat.";
+      $("deviceVersion").textContent = "Belum diketahui";
+      $("installedCard").textContent = "-";
       return;
     }
+
+    // ESP32 V4 mengirim objek: state, message, version, deviceUid.
+    const state = String(currentStatus.state || "unknown").toLowerCase();
+    const detail = String(currentStatus.message || "Tidak ada detail status.");
+    const version = String(currentStatus.version || "-");
+    const label = statusLabels[state] || state.replaceAll("_", " ");
+
+    $("deviceBadge").className = "pill " + stateColor(state);
+    $("deviceBadge").textContent = label;
+    $("stateCard").textContent = label;
+    $("statusText").textContent = label;
+    $("deviceMessage").textContent = detail;
+    $("deviceVersion").textContent = version;
+    $("installedCard").textContent = version;
+
+    if (state === "ready") {
+      setMessage("ESP32 siap menerima perintah OTA.\n" + detail, "success");
+    } else if (state === "no_update") {
+      setMessage("Pemeriksaan selesai. Versi GitHub sama dengan versi terpasang; tidak ada pembaruan yang diperlukan.\n" + detail, "success");
+    } else if (state === "checking" || state === "updating" || state === "downloading") {
+      setMessage("ESP32 sedang memproses perintah.\n" + detail, "info");
+    } else if (state === "error" || state === "failed") {
+      setMessage("ESP32 melaporkan kegagalan.\n" + detail, "error");
+    } else if (detail) {
+      setMessage("Laporan terbaru dari ESP32:\n" + detail, "info");
+    }
+  }
+
+  function renderCommand(value) {
+    currentCommand = typeof value === "string" ? value : "unknown";
+    $("commandText").textContent = currentCommand;
+    updateButtons();
+  }
+
+  $("loginForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const email = $("email").value.trim();
+    const password = $("password").value;
+
+    if (!email || !password) {
+      setMessage("Masukkan email dan password Firebase.", "error");
+      return;
+    }
+
     $("loginBtn").disabled = true;
+    $("loginBtn").textContent = "Memeriksa akun...";
     try {
       await signInWithEmailAndPassword(auth, email, password);
       $("password").value = "";
-    } catch (e) {
-      message("Login gagal: " + e.message);
+    } catch (error) {
+      setMessage("Login gagal: " + error.message, "error");
     } finally {
       $("loginBtn").disabled = false;
+      $("loginBtn").textContent = "Login ke Dashboard";
     }
   });
 
   $("logoutBtn").addEventListener("click", async () => {
-    try { await signOut(auth); }
-    catch (e) { message("Logout gagal: " + e.message); }
+    try {
+      await signOut(auth);
+    } catch (error) {
+      setMessage("Logout gagal: " + error.message, "error");
+    }
   });
 
   onAuthStateChanged(auth, user => {
     if (stopStatusListener) stopStatusListener();
     if (stopCommandListener) stopCommandListener();
-    stopStatusListener = stopCommandListener = null;
+    stopStatusListener = null;
+    stopCommandListener = null;
+
     latestRelease = null;
+    currentStatus = null;
+    currentCommand = "unknown";
+    busy = false;
+    $("releaseCard").textContent = "Belum diperiksa";
+    $("version")?.textContent;
+    $("targetText").textContent = "Belum dipilih";
+    $("commandText").textContent = "Memuat...";
+    $("statusText").textContent = "Menunggu laporan ESP32...";
+    $("deviceMessage").textContent = "Belum ada laporan.";
+    $("deviceVersion").textContent = "Belum diketahui";
+    $("installedCard").textContent = "-";
+    $("stateCard").textContent = "Menunggu";
+    $("deviceBadge").className = "pill";
+    $("deviceBadge").textContent = "Menunggu laporan";
 
     if (!user) {
       $("loginPanel").classList.remove("hidden");
       $("dashboard").classList.add("hidden");
+      $("authBadge").className = "pill";
+      $("authBadge").textContent = "Belum login";
+      updateButtons();
       return;
     }
 
     if (user.uid !== ADMIN_UID) {
-      message("Akses ditolak: akun ini bukan admin yang diizinkan.");
+      setMessage("Akses ditolak: akun ini bukan administrator yang diizinkan.", "error");
       signOut(auth);
       return;
     }
 
     $("loginPanel").classList.add("hidden");
     $("dashboard").classList.remove("hidden");
-    $("userEmail").textContent = user.email || "Admin";
-    $("version").textContent = "Belum diperiksa";
-    $("updateBtn").disabled = true;
+    $("authBadge").className = "pill green";
+    $("authBadge").textContent = "Admin terautentikasi";
+    $("userEmail").textContent = user.email || "Administrator";
 
     stopStatusListener = onValue(ref(db, "ota/status"), snap => {
-      $("status").textContent = snap.exists()
-        ? String(snap.val()) : "Belum ada status";
-    }, err => message("Gagal membaca status: " + err.message));
+      if (!snap.exists()) {
+        renderStatus(null);
+        return;
+      }
+      renderStatus(snap.val());
+    }, error => setMessage("Gagal membaca status Firebase: " + error.message, "error"));
 
     stopCommandListener = onValue(ref(db, "ota/command"), snap => {
-      $("command").textContent = snap.exists()
-        ? String(snap.val()) : "Belum ada perintah";
-    }, err => message("Gagal membaca perintah: " + err.message));
+      renderCommand(snap.exists() ? snap.val() : "unknown");
+    }, error => setMessage("Gagal membaca perintah Firebase: " + error.message, "error"));
+
+    updateButtons();
+    setMessage("Login berhasil. Menghubungkan dashboard ke Firebase...", "info");
   });
 
   $("checkBtn").addEventListener("click", async () => {
-    if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) return;
-    setBusy(true);
-    message("Memeriksa GitHub Releases...");
+    if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) {
+      setMessage("Silakan login sebagai administrator.", "error");
+      return;
+    }
+
+    busy = true;
+    updateButtons();
+    setMessage("Sedang memeriksa GitHub Releases...", "info");
+
     try {
       const response = await fetch(RELEASE_API, {
         headers: { "Accept": "application/vnd.github+json" },
         cache: "no-store"
       });
+
       if (!response.ok) throw new Error("GitHub HTTP " + response.status);
+
       const release = await response.json();
       if (release.draft || release.prerelease)
         throw new Error("Release terbaru adalah draft/prerelease.");
 
-      const asset = (release.assets || []).find(a =>
-        a.name === "firmware.bin" && a.state === "uploaded"
+      const asset = (release.assets || []).find(item =>
+        item.name === "firmware.bin" && item.state === "uploaded"
       );
       if (!asset) throw new Error("Asset firmware.bin tidak ditemukan.");
 
@@ -209,45 +593,58 @@
         tag: release.tag_name,
         url: asset.browser_download_url
       };
-      $("version").textContent = release.tag_name;
-      $("updateBtn").disabled = false;
-      message("Firmware ditemukan: " + release.tag_name +
-              "\nAsset: firmware.bin\nSekarang kamu bisa mengirim perintah OTA.");
-    } catch (e) {
+
+      $("releaseCard").textContent = release.tag_name || "-";
+      $("targetText").textContent = release.tag_name || "-";
+      setMessage(
+        "Release berhasil ditemukan.\nVersi: " + release.tag_name +
+        "\nAsset: firmware.bin\nPeriksa status ESP32 sebelum mengirim perintah update.",
+        "success"
+      );
+    } catch (error) {
       latestRelease = null;
-      $("version").textContent = "Gagal memeriksa";
-      $("updateBtn").disabled = true;
-      message("Gagal: " + e.message);
+      $("releaseCard").textContent = "Gagal";
+      $("targetText").textContent = "Belum dipilih";
+      setMessage("Gagal memeriksa firmware: " + error.message, "error");
     } finally {
-      $("checkBtn").disabled = false;
+      busy = false;
+      updateButtons();
     }
   });
 
   $("updateBtn").addEventListener("click", async () => {
     if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) {
-      message("Akses admin tidak valid.");
+      setMessage("Akses admin tidak valid.", "error");
       return;
     }
     if (!latestRelease) {
-      message("Periksa firmware terlebih dahulu.");
+      setMessage("Periksa firmware terbaru terlebih dahulu.", "error");
       return;
     }
-    if (!confirm("Kirim perintah update ke ESP32 menggunakan release " +
-                 latestRelease.tag + "?")) return;
+    if (currentCommand === "update") {
+      setMessage("Perintah update sebelumnya masih tercatat aktif. Tunggu ESP32 memprosesnya.", "info");
+      return;
+    }
+    if (!confirm(
+      "Kirim perintah OTA untuk release " + latestRelease.tag +
+      "?\nPastikan ESP32 menyala dan koneksi internet stabil."
+    )) return;
 
-    setBusy(true);
+    busy = true;
+    updateButtons();
+
     try {
-      const command = {
-        action: "update",
-        tag: latestRelease.tag,
-        requestedAt: Date.now()
-      };
       await set(ref(db, "ota/command"), "update");
-      message("Perintah dikirim ke Firebase. Menunggu ESP32 melaporkan status.");
-    } catch (e) {
-      message("Perintah gagal dikirim: " + e.message);
+      setMessage(
+        "Perintah update berhasil dikirim ke Firebase.\n" +
+        "Menunggu laporan terbaru dari ESP32. Status di dashboard akan berubah saat ESP32 mengirim status berikutnya.",
+        "info"
+      );
+    } catch (error) {
+      setMessage("Perintah gagal dikirim: " + error.message, "error");
     } finally {
-      setBusy(false);
+      busy = false;
+      updateButtons();
     }
   });
 </script>
