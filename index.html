@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Indra ESP32 OTA</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px 14px; min-height: 100vh;
+      font-family: Arial, sans-serif; background: #f1f5f9; color: #172033;
+    }
+    main {
+      max-width: 560px; margin: 24px auto; padding: 24px;
+      background: white; border-radius: 18px;
+      box-shadow: 0 8px 28px #0f172a12;
+    }
+    h1 { margin-top: 0; font-size: 26px; }
+    p { line-height: 1.5; }
+    label { display: block; margin: 14px 0 6px; font-weight: bold; }
+    input {
+      width: 100%; padding: 12px; border: 1px solid #cbd5e1;
+      border-radius: 8px; font-size: 16px;
+    }
+    button {
+      width: 100%; padding: 12px; margin-top: 12px;
+      border: 0; border-radius: 8px; cursor: pointer;
+      background: #166534; color: white; font-size: 16px;
+    }
+    button.secondary { background: #334155; }
+    button.danger { background: #b91c1c; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .panel {
+      margin-top: 18px; padding: 14px; border-radius: 10px;
+      background: #f8fafc; border: 1px solid #e2e8f0;
+      overflow-wrap: anywhere;
+    }
+    .muted { color: #64748b; font-size: 14px; }
+    #message { white-space: pre-wrap; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>ESP32 OTA Control</h1>
+  <p class="muted">Remote firmware management · Indra</p>
+
+  <section id="loginPanel">
+    <h2>Login Admin</h2>
+    <label for="email">Email Firebase</label>
+    <input id="email" type="email" autocomplete="username"
+           placeholder="Email admin" required>
+    <label for="password">Password Firebase</label>
+    <input id="password" type="password"
+           autocomplete="current-password" placeholder="Password" required>
+    <button id="loginBtn">Login</button>
+  </section>
+
+  <section id="dashboard" class="hidden">
+    <div class="panel">
+      <strong>Akun:</strong>
+      <div id="userEmail">-</div>
+      <strong>Firmware GitHub:</strong>
+      <div id="version">Belum diperiksa</div>
+      <strong>Status ESP32:</strong>
+      <div id="status">Memuat...</div>
+      <strong>Perintah OTA:</strong>
+      <div id="command">Memuat...</div>
+    </div>
+
+    <button id="checkBtn" class="secondary">Cek Firmware Terbaru</button>
+    <button id="updateBtn" disabled>Update Firmware</button>
+    <button id="logoutBtn" class="danger">Logout</button>
+  </section>
+
+  <div class="panel">
+    <strong>Pesan:</strong>
+    <p id="message">Silakan login untuk memulai.</p>
+  </div>
+  <p class="muted">
+    Jangan memutus daya ESP32 selama proses pembaruan.
+    Update hanya akan berjalan jika firmware ESP32 mendukungnya.
+  </p>
+</main>
+
+<script type="module">
+  import { initializeApp } from
+    "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
+  import {
+    getDatabase, ref, get, set, onValue
+  } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAYRCWZyZQDYtonGAax6S3xstFyspRmgSQ",
+    authDomain: "indra-esp32-ota.firebaseapp.com",
+    databaseURL: "https://indra-esp32-ota-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "indra-esp32-ota",
+    storageBucket: "indra-esp32-ota.firebasestorage.app",
+    messagingSenderId: "215475877016",
+    appId: "1:215475877016:web:6f39e1e00de0bf1ca04ced"
+  };
+
+  const ADMIN_UID = "QMep5nuGxffXYryv1LkLE9b8FPO2";
+  const RELEASE_API =
+    "https://api.github.com/repos/Indra-MIK/OTA_ESP_32/releases/latest";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getDatabase(app);
+
+  const $ = id => document.getElementById(id);
+  let latestRelease = null;
+  let stopStatusListener = null;
+  let stopCommandListener = null;
+  let busy = false;
+
+  function message(text) {
+    $("message").textContent = text;
+  }
+
+  function setBusy(value) {
+    busy = value;
+    $("checkBtn").disabled = value;
+    $("updateBtn").disabled = value || !latestRelease;
+  }
+
+  $("loginBtn").addEventListener("click", async () => {
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (!email || !password) {
+      message("Masukkan email dan password.");
+      return;
+    }
+    $("loginBtn").disabled = true;
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      $("password").value = "";
+    } catch (e) {
+      message("Login gagal: " + e.message);
+    } finally {
+      $("loginBtn").disabled = false;
+    }
+  });
+
+  $("logoutBtn").addEventListener("click", async () => {
+    try { await signOut(auth); }
+    catch (e) { message("Logout gagal: " + e.message); }
+  });
+
+  onAuthStateChanged(auth, user => {
+    if (stopStatusListener) stopStatusListener();
+    if (stopCommandListener) stopCommandListener();
+    stopStatusListener = stopCommandListener = null;
+    latestRelease = null;
+
+    if (!user) {
+      $("loginPanel").classList.remove("hidden");
+      $("dashboard").classList.add("hidden");
+      return;
+    }
+
+    if (user.uid !== ADMIN_UID) {
+      message("Akses ditolak: akun ini bukan admin yang diizinkan.");
+      signOut(auth);
+      return;
+    }
+
+    $("loginPanel").classList.add("hidden");
+    $("dashboard").classList.remove("hidden");
+    $("userEmail").textContent = user.email || "Admin";
+    $("version").textContent = "Belum diperiksa";
+    $("updateBtn").disabled = true;
+
+    stopStatusListener = onValue(ref(db, "ota/status"), snap => {
+      $("status").textContent = snap.exists()
+        ? String(snap.val()) : "Belum ada status";
+    }, err => message("Gagal membaca status: " + err.message));
+
+    stopCommandListener = onValue(ref(db, "ota/command"), snap => {
+      $("command").textContent = snap.exists()
+        ? String(snap.val()) : "Belum ada perintah";
+    }, err => message("Gagal membaca perintah: " + err.message));
+  });
+
+  $("checkBtn").addEventListener("click", async () => {
+    if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) return;
+    setBusy(true);
+    message("Memeriksa GitHub Releases...");
+    try {
+      const response = await fetch(RELEASE_API, {
+        headers: { "Accept": "application/vnd.github+json" },
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error("GitHub HTTP " + response.status);
+      const release = await response.json();
+      if (release.draft || release.prerelease)
+        throw new Error("Release terbaru adalah draft/prerelease.");
+
+      const asset = (release.assets || []).find(a =>
+        a.name === "firmware.bin" && a.state === "uploaded"
+      );
+      if (!asset) throw new Error("Asset firmware.bin tidak ditemukan.");
+
+      latestRelease = {
+        tag: release.tag_name,
+        url: asset.browser_download_url
+      };
+      $("version").textContent = release.tag_name;
+      $("updateBtn").disabled = false;
+      message("Firmware ditemukan: " + release.tag_name +
+              "\nAsset: firmware.bin\nSekarang kamu bisa mengirim perintah OTA.");
+    } catch (e) {
+      latestRelease = null;
+      $("version").textContent = "Gagal memeriksa";
+      $("updateBtn").disabled = true;
+      message("Gagal: " + e.message);
+    } finally {
+      $("checkBtn").disabled = false;
+    }
+  });
+
+  $("updateBtn").addEventListener("click", async () => {
+    if (!auth.currentUser || auth.currentUser.uid !== ADMIN_UID) {
+      message("Akses admin tidak valid.");
+      return;
+    }
+    if (!latestRelease) {
+      message("Periksa firmware terlebih dahulu.");
+      return;
+    }
+    if (!confirm("Kirim perintah update ke ESP32 menggunakan release " +
+                 latestRelease.tag + "?")) return;
+
+    setBusy(true);
+    try {
+      const command = {
+        action: "update",
+        tag: latestRelease.tag,
+        requestedAt: Date.now()
+      };
+      await set(ref(db, "ota/command"), "update");
+      message("Perintah dikirim ke Firebase. Menunggu ESP32 melaporkan status.");
+    } catch (e) {
+      message("Perintah gagal dikirim: " + e.message);
+    } finally {
+      setBusy(false);
+    }
+  });
+</script>
+</body>
+</html>
